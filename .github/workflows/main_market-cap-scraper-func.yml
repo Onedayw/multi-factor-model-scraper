@@ -35,20 +35,21 @@ jobs:
           source venv/bin/activate
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       # Optional: Add step to run tests here
 
-      - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+      - name: Zip artifact for deployment (exclude venv and unnecessary files)
+        run: |
+          zip -r release.zip . -x "venv/*" ".git/*" ".github/*" "*.pyc" "__pycache__/*" ".gitignore" "README.md"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: |
-            release.zip
-            !venv/
+          path: release.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -67,7 +68,14 @@ jobs:
         run: |
           unzip release.zip
           rm release.zip
-        
+
+      # Verify files are in place
+      - name: List files for debugging
+        run: |
+          ls -la
+          echo "Contents of requirements.txt:"
+          cat requirements.txt || echo "requirements.txt not found!"
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -82,4 +90,3 @@ jobs:
           app-name: 'market-cap-scraper-func'
           slot-name: 'Production'
           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-          
