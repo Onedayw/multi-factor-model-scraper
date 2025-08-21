@@ -90,3 +90,6 @@ jobs:
           app-name: 'market-cap-scraper-func'
           slot-name: 'Production'
           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+          enable-oryx-build: true
+          scm-do-build-during-deployment: true
+          
