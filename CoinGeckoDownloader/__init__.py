@@ -9,13 +9,42 @@ import os
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('CoinGecko price chart downloader function started.')
     
+    # Get parameters
+    overwrite = req.params.get('overwrite', 'false').lower() == 'true'
+    
     coins = ['bitcoin', 'ethereum', 'ripple', 'tether', 'binancecoin']
     base_url = "https://www.coingecko.com/price_charts/export/{}/usd.csv"
     
     results = {}
+    container_name = os.environ.get('AZURE_STORAGE_CONTAINER', 'coingecko-data')
+    azure_storage_connection = os.environ.get('AzureWebJobsStorage')
     
     for coin in coins:
         try:
+            filename = f"{coin}_price_data_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"
+            blob_path = f"market_cap/raw_data/{filename}"
+            
+            # Check if file already exists
+            if azure_storage_connection:
+                try:
+                    from azure.storage.blob import BlobServiceClient
+                    blob_service_client = BlobServiceClient.from_connection_string(azure_storage_connection)
+                    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_path)
+                    
+                    # Check if blob exists (only skip if overwrite is False)
+                    if not overwrite and blob_client.exists():
+                        logging.info(f'File {blob_path} already exists, skipping download for {coin}')
+                        results[coin] = {
+                            'status': 'skipped',
+                            'reason': 'file_already_exists',
+                            'existing_file': blob_path,
+                            'timestamp': datetime.now(timezone.utc).isoformat()
+                        }
+                        continue
+                except Exception as e:
+                    logging.error(f'Error checking if blob exists for {coin}: {str(e)}')
+                    # Continue with download if check fails
+            
             url = base_url.format(coin)
             logging.info(f'Downloading data for {coin} from {url}')
             
@@ -31,18 +60,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
             
-            filename = f"{coin}_price_data_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
-            
-            container_name = os.environ.get('AZURE_STORAGE_CONTAINER', 'coingecko-data')
-            azure_storage_connection = os.environ.get('AzureWebJobsStorage')
-            
             if azure_storage_connection:
                 try:
-                    from azure.storage.blob import BlobServiceClient
-                    blob_service_client = BlobServiceClient.from_connection_string(azure_storage_connection)
-                    blob_client = blob_service_client.get_blob_client(container=container_name, blob=filename)
-                    blob_client.upload_blob(csv_data, overwrite=True)
-                    results[coin]['storage_location'] = f"{container_name}/{filename}"
+                    blob_client.upload_blob(csv_data, overwrite=overwrite)
+                    results[coin]['storage_location'] = f"{container_name}/{blob_path}"
                     logging.info(f'Successfully uploaded {coin} data to blob storage')
                 except Exception as e:
                     logging.error(f'Failed to upload {coin} data to blob storage: {str(e)}')
@@ -67,7 +88,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
     
-    success_count = sum(1 for result in results.values() if result['status'] == 'success')
+    success_count = sum(1 for result in results.values() if result['status'] in ['success', 'skipped'])
     total_count = len(results)
     
     response_data = {
