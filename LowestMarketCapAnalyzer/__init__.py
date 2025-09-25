@@ -1,5 +1,6 @@
 import azure.functions as func
 import logging
+import requests
 import json
 import pandas as pd
 import io
@@ -7,10 +8,32 @@ from datetime import datetime, timezone
 import os
 
 
+def get_coin_list():
+    """Fetch coin list from CoinGecko API"""
+    try:
+        coin_list_url = "https://api.coingecko.com/api/v3/coins/list"
+        response = requests.get(coin_list_url, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logging.error(f'Failed to fetch coin list: {str(e)}')
+        return None
+
+
 def analyze_lowest_market_caps(blob_service_client, container_name, start_date='2023-01-01'):
     """Download and analyze CSV files from blob storage to find lowest market caps since start_date"""
     lowest_caps = {}
-    coins = ['bitcoin', 'ethereum', 'ripple', 'tether', 'binancecoin']
+    
+    # Get coin list and mapping
+    coin_list = get_coin_list()
+    if not coin_list:
+        logging.error('Failed to fetch coin list, falling back to default coins')
+        coins = ['bitcoin', 'ethereum', 'ripple', 'tether', 'binancecoin']
+        coin_mapping = {coin: {'symbol': coin, 'name': coin.title()} for coin in coins}
+    else:
+        coins = [coin['id'] for coin in coin_list]
+        coin_mapping = {coin['id']: {'symbol': coin['symbol'], 'name': coin['name']} for coin in coin_list}
+        logging.info(f'Will analyze data for {len(coins)} coins')
     
     # List blobs in container to find latest CSV files for each coin
     try:
@@ -49,17 +72,23 @@ def analyze_lowest_market_caps(blob_service_client, container_name, start_date='
                             # Find lowest market cap
                             min_cap_row = df_filtered.loc[df_filtered['market_cap'].idxmin()]
                             lowest_caps[coin] = {
-                                'coin': coin.upper(),
+                                'coin_id': coin,
+                                'coin_symbol': coin_mapping[coin]['symbol'].upper(),
+                                'coin_name': coin_mapping[coin]['name'],
                                 'lowest_market_cap': float(min_cap_row['market_cap']),
                                 'date': min_cap_row['date'].strftime('%Y-%m-%d'),
                                 'price_at_lowest': float(min_cap_row['price']),
-                                'total_volume': float(min_cap_row.get('total_volume', 0))
+                                'total_volume': float(min_cap_row.get('total_volume', 0)),
+                                'current_price': float(df.iloc[-1]['price']) if not df.empty else None,
+                                'current_market_cap': float(df.iloc[-1]['market_cap']) if 'market_cap' in df.columns and not df.empty else None
                             }
                         else:
                             # Fallback to lowest price if no market cap
                             min_price_row = df_filtered.loc[df_filtered['price'].idxmin()]
                             lowest_caps[coin] = {
-                                'coin': coin.upper(),
+                                'coin_id': coin,
+                                'coin_symbol': coin_mapping[coin]['symbol'].upper(),
+                                'coin_name': coin_mapping[coin]['name'],
                                 'lowest_price': float(min_price_row['price']),
                                 'date': min_price_row['date'].strftime('%Y-%m-%d'),
                                 'market_cap': 'Not available'
@@ -73,7 +102,9 @@ def analyze_lowest_market_caps(blob_service_client, container_name, start_date='
                     if 'market_cap' in df.columns and not df_filtered.empty:
                         min_cap_row = df_filtered.loc[df_filtered['market_cap'].idxmin()]
                         lowest_caps[coin] = {
-                            'coin': coin.upper(),
+                            'coin_id': coin,
+                            'coin_symbol': coin_mapping[coin]['symbol'].upper(),
+                            'coin_name': coin_mapping[coin]['name'],
                             'lowest_market_cap': float(min_cap_row['market_cap']),
                             'date': min_cap_row['date'].strftime('%Y-%m-%d'),
                             'price_at_lowest': float(min_cap_row.get('price', 0))

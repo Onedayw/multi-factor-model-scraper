@@ -2,3 +2,5 @@ azure-functions
 requests
 azure-storage-blob
 pandas
+aiohttp
+asyncio
