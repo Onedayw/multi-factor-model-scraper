@@ -26,10 +26,11 @@ def call_coingecko_downloader(start_index, max_coins=100, overwrite=False):
         if not downloader_url:
             # Fallback to constructing from base URL
             base_url = os.environ.get('AZURE_FUNCTIONS_BASE_URL')
-            if base_url:
-                downloader_url = f"{base_url}/api/CoinGeckoDownloader"
-            else:
-                raise ValueError('Neither COINGECKO_DOWNLOADER_URL nor AZURE_FUNCTIONS_BASE_URL environment variables are set')
+            if not base_url:
+                # Use default URL with warning
+                base_url = 'market-cap-scraper-func-aabrdce2a7cxavax.canadacentral-01.azurewebsites.net'
+                logging.warning('AZURE_FUNCTIONS_BASE_URL not set, using default URL. Set this environment variable for production.')
+            downloader_url = f"{base_url}/api/CoinGeckoDownloader"
 
         # Get function key from environment variable
         function_code = os.environ.get('AZURE_FUNCTION_CODE')
@@ -61,10 +62,11 @@ def call_lowest_market_cap_analyzer(start_date='2023-01-01', overwrite=False):
         if not analyzer_url:
             # Fallback to constructing from base URL
             base_url = os.environ.get('AZURE_FUNCTIONS_BASE_URL')
-            if base_url:
-                analyzer_url = f"{base_url}/api/LowestMarketCapAnalyzer"
-            else:
-                raise ValueError('Neither MARKET_CAP_ANALYZER_URL nor AZURE_FUNCTIONS_BASE_URL environment variables are set')
+            if not base_url:
+                # Use default URL with warning
+                base_url = 'market-cap-scraper-func-aabrdce2a7cxavax.canadacentral-01.azurewebsites.net'
+                logging.warning('AZURE_FUNCTIONS_BASE_URL not set, using default URL. Set this environment variable for production.')
+            analyzer_url = f"{base_url}/api/LowestMarketCapAnalyzer"
 
         # Get function key from environment variable
         function_code = os.environ.get('AZURE_FUNCTION_CODE')
