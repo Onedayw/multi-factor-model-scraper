@@ -28,7 +28,7 @@ def call_coingecko_downloader(start_index, max_coins=100, overwrite=False):
             base_url = os.environ.get('AZURE_FUNCTIONS_BASE_URL')
             if not base_url:
                 # Use default URL with warning
-                base_url = 'market-cap-scraper-func-aabrdce2a7cxavax.canadacentral-01.azurewebsites.net'
+                base_url = 'https://market-cap-scraper-func-aabrdce2a7cxavax.canadacentral-01.azurewebsites.net'
                 logging.warning('AZURE_FUNCTIONS_BASE_URL not set, using default URL. Set this environment variable for production.')
             downloader_url = f"{base_url}/api/CoinGeckoDownloader"
 
@@ -64,7 +64,7 @@ def call_lowest_market_cap_analyzer(start_date='2023-01-01', overwrite=False):
             base_url = os.environ.get('AZURE_FUNCTIONS_BASE_URL')
             if not base_url:
                 # Use default URL with warning
-                base_url = 'market-cap-scraper-func-aabrdce2a7cxavax.canadacentral-01.azurewebsites.net'
+                base_url = 'https://market-cap-scraper-func-aabrdce2a7cxavax.canadacentral-01.azurewebsites.net'
                 logging.warning('AZURE_FUNCTIONS_BASE_URL not set, using default URL. Set this environment variable for production.')
             analyzer_url = f"{base_url}/api/LowestMarketCapAnalyzer"
 
